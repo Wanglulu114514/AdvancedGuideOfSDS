@@ -1,0 +1,47 @@
+name: Build and Deploy GitBook
+
+# 触发条件：当主分支有代码推送时执行
+on:
+  push:
+    branches:
+      - main     # 如果你的主分支叫 master，请改成 master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest # 使用 GitHub 提供的免费 Ubuntu 运行环境
+
+    steps:
+      # 1. 拉取仓库的 Markdown 代码
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # 2. 配置 Node.js 环境
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # 3. 安装 HonKit 并编译静态文件
+      - name: Build with HonKit
+        run: |
+          npm install -g honkit
+          # HonKit 会读取你仓库的 Markdown 并生成 HTML 文件到 _book 目录下
+          honkit build
+
+      # 4. 通过 Rsync 部署到你的 Linux 服务器
+      - name: Deploy to Server via Rsync
+        env:
+          PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          HOST: ${{ secrets.SERVER_IP }}
+          USER: ${{ secrets.SERVER_USER }}
+        run: |
+          # 配置 SSH 客户端
+          mkdir -p ~/.ssh
+          echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # 将服务器 IP 添加到已知主机，避免二次确认报错
+          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
+          
+          # 执行严格的增量同步（--delete 确保服务器上没有被删除的旧文件残留）
+          # /var/www/mygitbook/ 就是上一篇教程中我们在服务器配置的 Nginx 网站根目录
+          rsync -avz --delete _book/ $USER@$HOST:/var/www/mygitbook/
