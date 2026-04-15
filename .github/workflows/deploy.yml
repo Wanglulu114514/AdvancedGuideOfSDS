@@ -21,27 +21,46 @@ jobs:
         with:
           node-version: '18'
 
-      # 3. 安装 HonKit 并编译静态文件
+      # 3. 核心修复：清洗新版 GitBook 的专有语法，优雅降级为标准 Markdown
+      - name: Sanitize GitBook proprietary tags
+        run: |
+          # 3.1 处理 embed (网页/视频嵌入)：降级为普通的可点击链接
+          find . -name "*.md" -type f -exec sed -i -E 's/\{% embed url="([^"]+)" %\}/[🔗 外部链接: \1](\1)/g' {} +
+          find . -name "*.md" -type f -exec sed -i 's/{% endembed %}//g' {} +
+          find . -name "*.md" -type f -exec sed -i -E 's/\{% embed.*%\}//g' {} +
+          
+          # 3.2 处理 hint (提示框)：降级为 Markdown 的标准引用 (Blockquote)
+          find . -name "*.md" -type f -exec sed -i -E 's/\{% hint style="([^"]+)" %\}/> **提示 (\1):**<br>/g' {} +
+          find . -name "*.md" -type f -exec sed -i 's/{% endhint %}//g' {} +
+          
+          # 3.3 处理 tabs (标签页)：降级为普通的三级标题
+          find . -name "*.md" -type f -exec sed -i 's/{% tabs %}//g' {} +
+          find . -name "*.md" -type f -exec sed -i 's/{% endtabs %}//g' {} +
+          find . -name "*.md" -type f -exec sed -i -E 's/\{% tab title="([^"]+)" %\}/### \1/g' {} +
+          find . -name "*.md" -type f -exec sed -i 's/{% endtab %}//g' {} +
+
+          # 3.4 处理 file 和 content-ref (附件和内部引用)：降级为标准链接
+          find . -name "*.md" -type f -exec sed -i -E 's/\{% file src="([^"]+)" %\}/[📄 附件](\1)/g' {} +
+          find . -name "*.md" -type f -exec sed -i 's/{% endfile %}//g' {} +
+          find . -name "*.md" -type f -exec sed -i -E 's/\{% content-ref url="([^"]+)" %\}/[🔗 参考链接](\1)/g' {} +
+          find . -name "*.md" -type f -exec sed -i 's/{% endcontent-ref %}//g' {} +
+
+      # 4. 安装 HonKit 并编译静态文件
       - name: Build with HonKit
         run: |
           npm install -g honkit
-          # HonKit 会读取你仓库的 Markdown 并生成 HTML 文件到 _book 目录下
           honkit build
 
-      # 4. 通过 Rsync 部署到你的 Linux 服务器
+      # 5. 通过 Rsync 部署到你的 Linux 服务器
       - name: Deploy to Server via Rsync
         env:
           PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
           HOST: ${{ secrets.SERVER_IP }}
           USER: ${{ secrets.SERVER_USER }}
         run: |
-          # 配置 SSH 客户端
           mkdir -p ~/.ssh
           echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          # 将服务器 IP 添加到已知主机，避免二次确认报错
           ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
-          
-          # 执行严格的增量同步（--delete 确保服务器上没有被删除的旧文件残留）
-          # /var/www/mygitbook/ 就是上一篇教程中我们在服务器配置的 Nginx 网站根目录
+          # 增量同步到服务器
           rsync -avz --delete _book/ $USER@$HOST:/var/www/mygitbook/
