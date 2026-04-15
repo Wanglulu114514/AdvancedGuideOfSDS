@@ -1,65 +1,22 @@
-name: Scrape and Deploy GitBook
+name: Deploy GitBook to Private Server
 
-# 触发条件：当 Markdown 源文件同步到 GitHub 时触发
 on:
   push:
     branches:
-      - main     # 确保这里的的主分支名称与你的仓库一致（main 或 master）
+      - main  # 请根据你的实际默认分支（main或master）进行修改
 
 jobs:
-  scrape-and-deploy:
+  trigger-server-crawl:
+    name: Trigger Remote Server Crawl
     runs-on: ubuntu-latest
-
     steps:
-      # 1. 延迟策略（极其重要）：给 GitBook 官方服务器 60 秒时间去编译上线最新网页
-      - name: Wait for GitBook to build live site
-        run: |
-          echo "Waiting for 60 seconds to ensure GitBook.com is updated..."
-          sleep 120
-
-      # 2. 安装企业级网页克隆工具 httrack (比 wget 处理现代前端网站更优秀)
-      - name: Install Site Mirror Tool
-        run: sudo apt-get update && sudo apt-get install -y httrack
-
-      # 3. 执行爬虫抓取
-      - name: Scrape the Live GitBook Site
-        run: |
-          # 【🚨 请修改这里】换成你免费分配到的 GitBook 公开网址
-          # 注意：必须以 / 结尾！例如 https://my-name.gitbook.io/my-project/
-          export SOURCE_URL="https://advancedguideforsds.gitbook.io/advancedguide/"
-          
-          echo "Start crawling $SOURCE_URL"
-          
-          # 提取域名，用于后续定位文件夹
-          export DOMAIN=$(echo $SOURCE_URL | awk -F/ '{print $3}')
-          
-          # 严谨的爬虫参数配置：
-          # -O "./mirror": 输出目录
-          # -q: 安静模式，减少日志干扰
-          # -%v: 模拟标准浏览器
-          # -s0: 严格不抓取外部网站，只抓取本书内容
-          # --update: 支持断点续传/增量
-          # 设置 User-Agent 伪装，绕过简单的云防火墙
-          httrack "$SOURCE_URL" -O "./mirror" "+*$DOMAIN/*" -q -s0 -%v -F "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
-          
-          echo "Crawling finished."
-
-      # 4. 通过 Rsync 部署到你的 Linux 服务器
-      - name: Deploy to Server via Rsync
-        env:
-          PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
-          HOST: ${{ secrets.SERVER_IP }}
-          USER: ${{ secrets.SERVER_USER }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
-          
-          # 提取爬虫下载的文件目录
-          export SOURCE_URL="https://advancedguideforsds.gitbook.io/advancedguide/"
-          export DOMAIN=$(echo $SOURCE_URL | awk -F/ '{print $3}')
-          
-          # 因为 httrack 会创建一个以域名命名的子文件夹，我们需要进入那个文件夹同步
-          # 严谨的增量同步：只覆盖修改的文件，删除服务器上多余的文件
-          rsync -avz --delete ./mirror/$DOMAIN/ $USER@$HOST:/var/www/mygitbook/
+      - name: Trigger Bash Script via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          # 核心技巧：使用 nohup 与重定向使得 ssh 命令秒级退出，避免阻塞 Github Action 计费时长
+          script: |
+            nohup /opt/scripts/sync_gitbook.sh > /dev/null 2>&1 </dev/null &
