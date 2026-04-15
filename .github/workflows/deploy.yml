@@ -1,57 +1,50 @@
-name: Build and Deploy GitBook
+name: Scrape and Deploy GitBook
 
-# 触发条件：当主分支有代码推送时执行
+# 触发条件：当 Markdown 源文件同步到 GitHub 时触发
 on:
   push:
     branches:
-      - main     # 如果你的主分支叫 master，请改成 master
+      - main     # 确保这里的的主分支名称与你的仓库一致（main 或 master）
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest # 使用 GitHub 提供的免费 Ubuntu 运行环境
+  scrape-and-deploy:
+    runs-on: ubuntu-latest
 
     steps:
-      # 1. 拉取仓库的 Markdown 代码
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      # 2. 配置 Node.js 环境
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      # 3. 核心修复：清洗新版 GitBook 的专有语法，优雅降级为标准 Markdown
-      - name: Sanitize GitBook proprietary tags
+      # 1. 延迟策略（极其重要）：给 GitBook 官方服务器 60 秒时间去编译上线最新网页
+      - name: Wait for GitBook to build live site
         run: |
-          # 3.1 处理 embed (网页/视频嵌入)：降级为普通的可点击链接
-          find . -name "*.md" -type f -exec sed -i -E 's/\{% embed url="([^"]+)" %\}/[🔗 外部链接: \1](\1)/g' {} +
-          find . -name "*.md" -type f -exec sed -i 's/{% endembed %}//g' {} +
-          find . -name "*.md" -type f -exec sed -i -E 's/\{% embed.*%\}//g' {} +
-          
-          # 3.2 处理 hint (提示框)：降级为 Markdown 的标准引用 (Blockquote)
-          find . -name "*.md" -type f -exec sed -i -E 's/\{% hint style="([^"]+)" %\}/> **提示 (\1):**<br>/g' {} +
-          find . -name "*.md" -type f -exec sed -i 's/{% endhint %}//g' {} +
-          
-          # 3.3 处理 tabs (标签页)：降级为普通的三级标题
-          find . -name "*.md" -type f -exec sed -i 's/{% tabs %}//g' {} +
-          find . -name "*.md" -type f -exec sed -i 's/{% endtabs %}//g' {} +
-          find . -name "*.md" -type f -exec sed -i -E 's/\{% tab title="([^"]+)" %\}/### \1/g' {} +
-          find . -name "*.md" -type f -exec sed -i 's/{% endtab %}//g' {} +
+          echo "Waiting for 60 seconds to ensure GitBook.com is updated..."
+          sleep 120
 
-          # 3.4 处理 file 和 content-ref (附件和内部引用)：降级为标准链接
-          find . -name "*.md" -type f -exec sed -i -E 's/\{% file src="([^"]+)" %\}/[📄 附件](\1)/g' {} +
-          find . -name "*.md" -type f -exec sed -i 's/{% endfile %}//g' {} +
-          find . -name "*.md" -type f -exec sed -i -E 's/\{% content-ref url="([^"]+)" %\}/[🔗 参考链接](\1)/g' {} +
-          find . -name "*.md" -type f -exec sed -i 's/{% endcontent-ref %}//g' {} +
+      # 2. 安装企业级网页克隆工具 httrack (比 wget 处理现代前端网站更优秀)
+      - name: Install Site Mirror Tool
+        run: sudo apt-get update && sudo apt-get install -y httrack
 
-      # 4. 安装 HonKit 并编译静态文件
-      - name: Build with HonKit
+      # 3. 执行爬虫抓取
+      - name: Scrape the Live GitBook Site
         run: |
-          npm install -g honkit
-          honkit build
+          # 【🚨 请修改这里】换成你免费分配到的 GitBook 公开网址
+          # 注意：必须以 / 结尾！例如 https://my-name.gitbook.io/my-project/
+          export SOURCE_URL="https://advancedguideforsds.gitbook.io/advancedguide/"
+          
+          echo "Start crawling $SOURCE_URL"
+          
+          # 提取域名，用于后续定位文件夹
+          export DOMAIN=$(echo $SOURCE_URL | awk -F/ '{print $3}')
+          
+          # 严谨的爬虫参数配置：
+          # -O "./mirror": 输出目录
+          # -q: 安静模式，减少日志干扰
+          # -%v: 模拟标准浏览器
+          # -s0: 严格不抓取外部网站，只抓取本书内容
+          # --update: 支持断点续传/增量
+          # 设置 User-Agent 伪装，绕过简单的云防火墙
+          httrack "$SOURCE_URL" -O "./mirror" "+*$DOMAIN/*" -q -s0 -%v -F "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+          
+          echo "Crawling finished."
 
-      # 5. 通过 Rsync 部署到你的 Linux 服务器
+      # 4. 通过 Rsync 部署到你的 Linux 服务器
       - name: Deploy to Server via Rsync
         env:
           PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
@@ -62,5 +55,11 @@ jobs:
           echo "$PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
-          # 增量同步到服务器
-          rsync -avz --delete _book/ $USER@$HOST:/var/www/mygitbook/
+          
+          # 提取爬虫下载的文件目录
+          export SOURCE_URL="https://advancedguideforsds.gitbook.io/advancedguide/"
+          export DOMAIN=$(echo $SOURCE_URL | awk -F/ '{print $3}')
+          
+          # 因为 httrack 会创建一个以域名命名的子文件夹，我们需要进入那个文件夹同步
+          # 严谨的增量同步：只覆盖修改的文件，删除服务器上多余的文件
+          rsync -avz --delete ./mirror/$DOMAIN/ $USER@$HOST:/var/www/mygitbook/
