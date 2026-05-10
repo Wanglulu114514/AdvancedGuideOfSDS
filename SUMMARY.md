@@ -129,6 +129,7 @@
 ## 经验篇
 
 * [对话 | 蜗壳进阶联盟 系列深度访谈栏目](jing-yan-pian/dui-hua-wo-ke-jin-jie-lian-meng-xi-lie-shen-du-fang-tan-lan-mu/README.md)
+  * [蜗壳进阶营 | 访谈01：Agent浪潮之下，我们清醒地活着](jing-yan-pian/dui-hua-wo-ke-jin-jie-lian-meng-xi-lie-shen-du-fang-tan-lan-mu/wo-ke-jin-jie-ying-fang-tan-01agent-lang-chao-zhi-xia-wo-men-qing-xing-di-huo-zhe.md)
   * [专访“三鲤网络”创始人沈达：打造下一代OpenAI Prism](jing-yan-pian/dui-hua-wo-ke-jin-jie-lian-meng-xi-lie-shen-du-fang-tan-lan-mu/zhuan-fang-san-li-wang-luo-chuang-shi-ren-shen-da-da-zao-xia-yi-dai-openai-prism.md)
   * [从物理到机器人的跨界，专访 XLeRobot 开发者王高天](jing-yan-pian/dui-hua-wo-ke-jin-jie-lian-meng-xi-lie-shen-du-fang-tan-lan-mu/cong-wu-li-dao-ji-qi-ren-de-kua-jie-zhuan-fang-xlerobot-kai-fa-zhe-wang-gao-tian.md)
   * [专访 “BitNet”系列模型作者王鸿钰：引领大模型轻量化浪潮，一位学术新星的破局与远见](jing-yan-pian/dui-hua-wo-ke-jin-jie-lian-meng-xi-lie-shen-du-fang-tan-lan-mu/zhuan-fang-bitnet-xi-lie-mo-xing-zuo-zhe-wang-hong-yu-yin-ling-da-mo-xing-qing-liang-hua-lang-chao-y.md)
@@ -163,7 +164,3 @@
   * [2023年大数据学院实习秋招分享会](fu-lu/jing-yan-fen-xiang-hui-shi-pin-zheng-li-2023.5.13-geng-xin/2023-nian-da-shu-ju-xue-yuan-shi-xi-qiu-zhao-fen-xiang-hui.md)
 * [据峰咖会](fu-lu/ju-feng-ka-hui/README.md)
   * [2022年度据峰咖会](fu-lu/ju-feng-ka-hui/2022-nian-du-ju-feng-ka-hui.md)
-
-***
-
-* [N QbfavE 2APrcKxFEwVQQ](n-qbfave-2aprckxfewvqq.md)
